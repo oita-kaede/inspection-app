@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="検査準備物表">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>検査準備物表</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif;background:#f5f5f3;color:#1a1a1a;font-size:14px;}
+
+/* ===== STATUS BAR ===== */
+.status-bar{padding:4px 20px;font-size:11px;text-align:right;color:#999;background:#fff;border-bottom:1px solid #f0ede8;}
+.status-bar .online{color:#1d7a4f;}
+.status-bar .offline{color:#d93025;}
+.status-bar .syncing{color:#e37400;}
+
+/* ===== HEADER ===== */
+.header{background:#fff;border-bottom:1px solid #e8e6e0;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:100;}
+.header h1{font-size:18px;font-weight:600;color:#1a1a1a;}
+.header-right{display:flex;align-items:center;gap:10px;}
+.toast{font-size:12px;color:#1d7a4f;display:none;background:#e8f5ee;padding:4px 10px;border-radius:6px;}
+.btn-add{font-size:13px;padding:7px 16px;border:none;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer;font-weight:500;}
+.btn-add:hover{background:#1557b0;}
+.search-bar{padding:12px 20px;background:#fff;border-bottom:1px solid #e8e6e0;}
+.search-bar input{width:100%;max-width:400px;padding:8px 14px;font-size:14px;border:1px solid #ddd;border-radius:8px;background:#f9f9f7;color:#1a1a1a;outline:none;}
+.search-bar input:focus{border-color:#1a73e8;background:#fff;}
+
+/* ===== LOADING ===== */
+.loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;z-index:200;flex-direction:column;gap:12px;}
+.loading-overlay.hidden{display:none;}
+.spinner{width:36px;height:36px;border:3px solid #e0e0e0;border-top-color:#1a73e8;border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:14px;color:#666;}
+
+/* ===== ERROR BANNER ===== */
+.error-banner{padding:10px 20px;background:#fce8e6;color:#d93025;font-size:13px;display:none;align-items:center;gap:8px;}
+.error-banner.show{display:flex;}
+.error-banner button{font-size:12px;padding:4px 12px;border:1px solid #d93025;border-radius:6px;background:#fff;color:#d93025;cursor:pointer;margin-left:auto;}
+
+/* ===== PC TABLE ===== */
+.pc-view{display:none;}
+.tbl-wrap{padding:16px 20px;overflow-x:auto;}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e8e6e0;}
+thead tr{background:#f9f9f7;}
+th{padding:10px 16px;font-size:11px;font-weight:600;color:#666;letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid #e8e6e0;border-right:1px solid #e8e6e0;text-align:left;}
+th:last-child{border-right:none;}
+td{padding:12px 14px;font-size:13px;color:#1a1a1a;border-bottom:1px solid #f0ede8;border-right:1px solid #f0ede8;vertical-align:top;line-height:1.75;}
+td:last-child{border-right:none;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:not(.editing):hover td{background:#fafaf8;}
+tbody tr.editing td{background:#f0f4ff;padding:10px 12px;}
+.col-name{width:140px;}.col-memo{width:35%;}.col-links{width:25%;}.col-other{width:17%;}.col-act{width:56px;text-align:center;}
+.name-cell{font-weight:600;color:#1a1a1a;}
+.memo-cell{white-space:pre-line;color:#333;}
+.empty{color:#aaa;font-size:12px;font-style:italic;}
+.link-pill{display:inline-flex;padding:3px 11px;font-size:12px;color:#1a73e8;background:#e8f0fe;border-radius:20px;border:none;text-decoration:none;margin:2px 3px 2px 0;font-weight:500;}
+.link-pill:hover{background:#d2e3fc;}
+.link-pill.dim{opacity:0.45;cursor:default;}
+.edit-btn{font-size:12px;padding:4px 12px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-weight:500;}
+.edit-btn:hover{background:#e8f0fe;color:#1a73e8;border-color:#1a73e8;}
+
+/* PC インライン編集 */
+.cell-input{width:100%;font-size:13px;padding:6px 9px;border:1px solid #c5c5c5;border-radius:6px;background:#fff;color:#1a1a1a;font-family:inherit;outline:none;}
+.cell-input:focus{border-color:#1a73e8;}
+.cell-textarea{width:100%;font-size:13px;padding:7px 9px;border:1px solid #c5c5c5;border-radius:6px;background:#fff;color:#1a1a1a;font-family:inherit;resize:vertical;min-height:88px;line-height:1.75;outline:none;}
+.cell-textarea:focus{border-color:#1a73e8;}
+.cell-other{min-height:60px;}
+.lr{display:flex;flex-direction:column;gap:4px;margin-bottom:5px;}
+.lr-row{display:flex;gap:4px;align-items:center;}
+.lr-row input{flex:1;min-width:0;font-size:12px;padding:5px 8px;border:1px solid #c5c5c5;border-radius:6px;background:#fff;color:#1a1a1a;font-family:inherit;outline:none;}
+.lr-row input:focus{border-color:#1a73e8;}
+.lr-del{font-size:12px;padding:4px 7px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#999;cursor:pointer;flex-shrink:0;}
+.lr-del:hover{color:#d93025;border-color:#d93025;}
+.add-lr{font-size:12px;color:#1a73e8;background:none;border:none;cursor:pointer;padding:2px 0;display:block;margin-top:2px;font-weight:500;}
+.act-btns{display:flex;flex-direction:column;gap:5px;align-items:stretch;}
+.save-btn{font-size:12px;padding:5px 10px;border:none;border-radius:6px;background:#1a73e8;color:#fff;cursor:pointer;font-weight:500;}
+.save-btn:hover{background:#1557b0;}
+.cancel-btn{font-size:12px;padding:5px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#555;cursor:pointer;}
+.del-btn-s{font-size:11px;padding:4px 8px;border:1px solid #f5c6c6;border-radius:6px;background:#fff;color:#d93025;cursor:pointer;margin-top:2px;}
+
+/* ===== MOBILE CARDS ===== */
+.mob-view{display:block;}
+.mob-list{padding:12px 14px;display:flex;flex-direction:column;gap:8px;}
+.card{background:#fff;border:1px solid #e8e6e0;border-radius:12px;overflow:hidden;}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;gap:8px;user-select:none;}
+.card-head:hover{background:#fafaf8;}
+.card-name{font-size:15px;font-weight:600;color:#1a1a1a;flex:1;}
+.head-r{display:flex;align-items:center;gap:8px;}
+.lc-badge{font-size:11px;padding:2px 9px;border-radius:20px;background:#e8f0fe;color:#1a73e8;font-weight:500;}
+.chev{font-size:12px;color:#999;transition:transform 0.2s;}
+.chev.open{transform:rotate(180deg);}
+.card-body{display:none;border-top:1px solid #f0ede8;}
+.card-body.open{display:block;}
+.sec{padding:13px 16px;border-bottom:1px solid #f0ede8;}
+.sec:last-child{border-bottom:none;}
+.sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.sec-label{font-size:11px;font-weight:600;color:#888;letter-spacing:0.5px;text-transform:uppercase;}
+.mob-edit-btn{font-size:11px;padding:3px 11px;border:1px solid #ddd;border-radius:20px;background:#fff;color:#555;cursor:pointer;font-weight:500;}
+.mob-edit-btn:hover{background:#e8f0fe;color:#1a73e8;border-color:#1a73e8;}
+.mob-edit-btn.active{background:#e8f0fe;color:#1a73e8;border-color:#1a73e8;}
+.memo-view{font-size:14px;color:#333;line-height:1.8;white-space:pre-line;}
+.memo-empty{font-size:13px;color:#aaa;font-style:italic;}
+.mob-textarea{width:100%;font-size:14px;padding:8px 10px;border:1px solid #c5c5c5;border-radius:8px;background:#fff;resize:vertical;font-family:inherit;min-height:80px;color:#1a1a1a;line-height:1.8;outline:none;}
+.mob-textarea:focus{border-color:#1a73e8;}
+.mob-save-btn{margin-top:8px;font-size:13px;padding:6px 16px;border:none;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer;font-weight:500;display:block;}
+.link-pills{display:flex;flex-wrap:wrap;gap:6px;}
+.mob-lr{display:flex;flex-direction:column;gap:5px;margin-bottom:6px;}
+.mob-lr-row{display:flex;gap:5px;align-items:center;}
+.mob-lr-row input{flex:1;min-width:0;font-size:13px;padding:6px 9px;border:1px solid #c5c5c5;border-radius:8px;background:#fff;color:#1a1a1a;font-family:inherit;outline:none;}
+.mob-lr-row input:focus{border-color:#1a73e8;}
+.mob-lr-del{font-size:12px;padding:5px 9px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#999;cursor:pointer;flex-shrink:0;}
+.mob-lr-del:hover{color:#d93025;border-color:#d93025;}
+.mob-add-lr{font-size:12px;color:#1a73e8;background:none;border:none;cursor:pointer;padding:2px 0;margin-top:3px;display:block;font-weight:500;}
+.other-view{font-size:14px;color:#333;line-height:1.8;white-space:pre-line;word-break:break-all;}
+.card-footer{padding:10px 16px;display:flex;justify-content:flex-end;}
+.del-card-btn{font-size:12px;padding:5px 14px;border:1px solid #f5c6c6;border-radius:8px;background:#fff;color:#d93025;cursor:pointer;}
+
+/* ===== RESPONSIVE ===== */
+@media(min-width:768px){
+  .pc-view{display:block;}
+  .mob-view{display:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">データを読み込み中...</div>
+</div>
+
+<!-- Status Bar -->
+<div class="status-bar" id="statusBar">
+  <span class="online" id="statusOnline">接続中</span>
+  <span class="offline" id="statusOffline" style="display:none;">オフライン（ローカルデータ）</span>
+  <span class="syncing" id="statusSyncing" style="display:none;">同期中...</span>
+</div>
+
+<!-- Error Banner -->
+<div class="error-banner" id="errorBanner">
+  <span id="errorMsg"></span>
+  <button onclick="hideError()">閉じる</button>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <h1>検査準備物表</h1>
+  <div class="header-right">
+    <span class="toast" id="toast">保存しました</span>
+    <button class="btn-add" onclick="addCard()">＋ 検査を追加</button>
+  </div>
+</div>
+<div class="search-bar">
+  <input type="text" placeholder="検査名で検索..." oninput="filterAll(this.value)">
+</div>
+
+<!-- PC TABLE -->
+<div class="pc-view">
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th class="col-name">検査名</th>
+        <th class="col-memo">持ち物・準備物</th>
+        <th class="col-links">関連リンク</th>
+        <th class="col-other">その他</th>
+        <th class="col-act"></th>
+      </tr></thead>
+      <tbody id="pc-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MOBILE CARDS -->
+<div class="mob-view">
+  <div class="mob-list" id="mob-list"></div>
+</div>
+
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- Config -->
+<script src="config.js"></script>
+
+<script>
+// =============================================
+// グローバル変数
+// =============================================
+var data = [];
+var pcEditing = -1;
+var openCards = {};
+var editSec = {};
+var supabase = null;
+var isOnline = navigator.onLine;
+var useSupabase = false;
+
+// =============================================
+// 初期化
+// =============================================
+async function init() {
+  // Supabase接続を試みる
+  if (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+    try {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      useSupabase = true;
+    } catch (e) {
+      console.warn('Supabase接続失敗、ローカルモードで起動:', e);
+    }
+  }
+
+  // データ読み込み
+  if (useSupabase && isOnline) {
+    try {
+      await loadFromSupabase();
+    } catch (e) {
+      console.warn('Supabase読み込み失敗:', e);
+      loadFromLocal();
+    }
+  } else {
+    loadFromLocal();
+  }
+
+  hideLoading();
+  renderPC();
+  renderMob();
+  updateStatus();
+
+  // Supabaseリアルタイム購読
+  if (useSupabase) {
+    subscribeRealtime();
+  }
+}
+
+// =============================================
+// データ読み込み
+// =============================================
+async function loadFromSupabase() {
+  var res = await supabase.from('inspections').select('*').order('sort_order', { ascending: true });
+  if (res.error) throw res.error;
+  data = res.data.map(function(row) {
+    return {
+      id: row.id,
+      name: row.name || '',
+      memo: row.memo || '',
+      links: (typeof row.links === 'string' ? JSON.parse(row.links) : row.links) || [],
+      other: row.other || '',
+      sort_order: row.sort_order
+    };
+  });
+  // ローカルにもキャッシュ
+  saveToLocal();
+  setStatus('online');
+}
+
+function loadFromLocal() {
+  try {
+    var s = localStorage.getItem('insp_pwa');
+    if (s) {
+      data = JSON.parse(s);
+    } else {
+      data = getDefaultData();
+    }
+  } catch (e) {
+    data = getDefaultData();
+  }
+  if (!isOnline) setStatus('offline');
+}
+
+function saveToLocal() {
+  try {
+    localStorage.setItem('insp_pwa', JSON.stringify(data));
+  } catch (e) {}
+}
+
+// =============================================
+// Supabase CRUD
+// =============================================
+async function saveItem(index) {
+  var item = data[index];
+  saveToLocal();
+  showToast();
+
+  if (!useSupabase || !isOnline) return;
+  setStatus('syncing');
+
+  try {
+    if (item.id) {
+      // 更新
+      var res = await supabase.from('inspections').update({
+        name: item.name,
+        memo: item.memo,
+        links: item.links,
+        other: item.other,
+        sort_order: item.sort_order !== undefined ? item.sort_order : index
+      }).eq('id', item.id);
+      if (res.error) throw res.error;
+    } else {
+      // 新規
+      var res = await supabase.from('inspections').insert({
+        name: item.name,
+        memo: item.memo,
+        links: item.links,
+        other: item.other,
+        sort_order: data.length - 1
+      }).select();
+      if (res.error) throw res.error;
+      if (res.data && res.data[0]) {
+        data[index].id = res.data[0].id;
+        data[index].sort_order = res.data[0].sort_order;
+        saveToLocal();
+      }
+    }
+    setStatus('online');
+  } catch (e) {
+    console.error('保存エラー:', e);
+    showError('保存に失敗しました。後で再試行します。');
+    setStatus('offline');
+  }
+}
+
+async function deleteItem(index) {
+  var item = data[index];
+  data.splice(index, 1);
+  saveToLocal();
+  showToast();
+
+  if (!useSupabase || !isOnline || !item.id) return;
+  setStatus('syncing');
+
+  try {
+    var res = await supabase.from('inspections').delete().eq('id', item.id);
+    if (res.error) throw res.error;
+    setStatus('online');
+  } catch (e) {
+    console.error('削除エラー:', e);
+    showError('サーバーからの削除に失敗しました。');
+    setStatus('offline');
+  }
+}
+
+// =============================================
+// リアルタイム同期
+// =============================================
+function subscribeRealtime() {
+  if (!supabase) return;
+  supabase.channel('inspections-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'inspections' }, function(payload) {
+      // 他の端末からの変更を反映
+      loadFromSupabase().then(function() {
+        renderPC();
+        renderMob();
+      }).catch(function() {});
+    })
+    .subscribe();
+}
+
+// =============================================
+// UI ステータス
+// =============================================
+function setStatus(s) {
+  document.getElementById('statusOnline').style.display = s === 'online' ? '' : 'none';
+  document.getElementById('statusOffline').style.display = s === 'offline' ? '' : 'none';
+  document.getElementById('statusSyncing').style.display = s === 'syncing' ? '' : 'none';
+}
+
+function updateStatus() {
+  if (!useSupabase) {
+    document.getElementById('statusBar').style.display = 'none';
+    return;
+  }
+  setStatus(isOnline ? 'online' : 'offline');
+}
+
+function hideLoading() {
+  document.getElementById('loading').classList.add('hidden');
+}
+
+function showToast() {
+  var t = document.getElementById('toast');
+  t.style.display = 'inline';
+  setTimeout(function() { t.style.display = 'none'; }, 2000);
+}
+
+function showError(msg) {
+  document.getElementById('errorMsg').textContent = msg;
+  document.getElementById('errorBanner').classList.add('show');
+}
+
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('show');
+}
+
+// =============================================
+// オンライン/オフライン検知
+// =============================================
+window.addEventListener('online', function() {
+  isOnline = true;
+  updateStatus();
+  // オンライン復帰時にSupabaseからデータ再読み込み
+  if (useSupabase) {
+    loadFromSupabase().then(function() {
+      renderPC();
+      renderMob();
+    }).catch(function() {});
+  }
+});
+
+window.addEventListener('offline', function() {
+  isOnline = false;
+  updateStatus();
+});
+
+// =============================================
+// ヘルパー
+// =============================================
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function lvHtml(item) {
+  return item.links.map(function(l) {
+    if (l.url) return '<a class="link-pill" href="' + esc(l.url) + '" target="_blank">' + esc(l.label || l.url) + '</a>';
+    if (l.label) return '<span class="link-pill dim">' + esc(l.label) + '</span>';
+    return '';
+  }).join('');
+}
+
+// =============================================
+// PC テーブル描画
+// =============================================
+function renderPC() {
+  var tb = document.getElementById('pc-body');
+  if (!tb) return;
+  tb.innerHTML = '';
+  data.forEach(function(item, i) {
+    var tr = document.createElement('tr');
+    tr.dataset.name = item.name.toLowerCase();
+    if (pcEditing === i) {
+      tr.className = 'editing';
+      var lrHtml = (item.links.length ? item.links : [{ label: '', url: '' }]).map(function(l, li) {
+        return '<div class="lr-row">'
+          + '<input type="text" placeholder="ラベル名" value="' + esc(l.label || '') + '" data-idx="' + i + '" data-li="' + li + '" data-field="label" onchange="updateLink(this)">'
+          + '<input type="text" placeholder="URL" value="' + esc(l.url || '') + '" data-idx="' + i + '" data-li="' + li + '" data-field="url" onchange="updateLink(this)">'
+          + '<button class="lr-del" onclick="pcRmLink(' + i + ',' + li + ')">✕</button>'
+          + '</div>';
+      }).join('');
+
+      tr.innerHTML = '<td><input class="cell-input" type="text" value="' + esc(item.name) + '" data-idx="' + i + '" onchange="data[' + i + '].name=this.value"></td>'
+        + '<td><textarea class="cell-textarea" data-idx="' + i + '" onchange="data[' + i + '].memo=this.value">' + esc(item.memo) + '</textarea></td>'
+        + '<td><div class="lr">' + lrHtml + '</div><button class="add-lr" onclick="pcAddLink(' + i + ')">＋ リンクを追加</button></td>'
+        + '<td><textarea class="cell-textarea cell-other" data-idx="' + i + '" onchange="data[' + i + '].other=this.value">' + esc(item.other || '') + '</textarea></td>'
+        + '<td><div class="act-btns"><button class="save-btn" onclick="pcSave(' + i + ')">保存</button><button class="cancel-btn" onclick="pcCancel()">取消</button><button class="del-btn-s" onclick="delCard(' + i + ')">削除</button></div></td>';
+    } else {
+      var lh = lvHtml(item);
+      tr.innerHTML = '<td class="name-cell">' + esc(item.name) + '</td>'
+        + '<td class="memo-cell">' + (item.memo ? esc(item.memo) : '<span class="empty">未入力</span>') + '</td>'
+        + '<td>' + (lh || '<span class="empty">なし</span>') + '</td>'
+        + '<td>' + (item.other ? '<span style="font-size:13px;white-space:pre-line;word-break:break-all;">' + esc(item.other) + '</span>' : '<span class="empty">なし</span>') + '</td>'
+        + '<td style="text-align:center;"><button class="edit-btn" onclick="pcStartEdit(' + i + ')">編集</button></td>';
+    }
+    tb.appendChild(tr);
+  });
+}
+
+function updateLink(el) {
+  var i = parseInt(el.dataset.idx);
+  var li = parseInt(el.dataset.li);
+  var field = el.dataset.field;
+  if (!data[i].links[li]) data[i].links[li] = { label: '', url: '' };
+  data[i].links[li][field] = el.value;
+}
+
+function pcStartEdit(i) { pcEditing = i; renderPC(); }
+function pcCancel() { pcEditing = -1; loadFromLocal(); renderPC(); }
+function pcSave(i) { pcEditing = -1; saveItem(i); renderPC(); }
+function pcAddLink(i) { data[i].links.push({ label: '', url: '' }); renderPC(); }
+function pcRmLink(i, li) {
+  data[i].links.splice(li, 1);
+  if (!data[i].links.length) data[i].links = [{ label: '', url: '' }];
+  renderPC();
+}
+
+// =============================================
+// モバイルカード描画
+// =============================================
+function k(i, s) { return i + '_' + s; }
+
+function renderMob() {
+  var list = document.getElementById('mob-list');
+  if (!list) return;
+  list.innerHTML = '';
+  data.forEach(function(item, i) {
+    var isOpen = !!openCards[i];
+    var eMemo = editSec[k(i, 'memo')], eLink = editSec[k(i, 'link')], eOther = editSec[k(i, 'other')];
+    var lc = item.links.filter(function(l) { return l.url; }).length + (item.other ? 1 : 0);
+    var lh = lvHtml(item);
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.name = item.name.toLowerCase();
+    var bodyHtml = '';
+    if (isOpen) {
+      // リンク編集部分
+      var lrInputs = (item.links.length ? item.links : [{ label: '', url: '' }]).map(function(l, li) {
+        return '<div class="mob-lr-row">'
+          + '<input type="text" placeholder="ラベル名" value="' + esc(l.label || '') + '" data-idx="' + i + '" data-li="' + li + '" data-field="label" onchange="updateLink(this)">'
+          + '<input type="text" placeholder="URL" value="' + esc(l.url || '') + '" data-idx="' + i + '" data-li="' + li + '" data-field="url" onchange="updateLink(this)">'
+          + '<button class="mob-lr-del" onclick="mobRmLink(' + i + ',' + li + ')">✕</button>'
+          + '</div>';
+      }).join('');
+
+      bodyHtml = '<div class="card-body open">'
+        + '<div class="sec"><div class="sec-head"><span class="sec-label">持ち物・準備物</span>'
+        + '<button class="mob-edit-btn' + (eMemo ? ' active' : '') + '" onclick="mobToggleSec(' + i + ',\'memo\')">' + (eMemo ? '完了' : '編集する') + '</button></div>'
+        + (eMemo ? '<textarea class="mob-textarea" onchange="data[' + i + '].memo=this.value">' + esc(item.memo) + '</textarea><button class="mob-save-btn" onclick="mobSaveSec(' + i + ',\'memo\')">保存</button>'
+          : (item.memo ? '<div class="memo-view">' + esc(item.memo) + '</div>' : '<span class="memo-empty">未入力</span>'))
+        + '</div>'
+        + '<div class="sec"><div class="sec-head"><span class="sec-label">関連リンク</span>'
+        + '<button class="mob-edit-btn' + (eLink ? ' active' : '') + '" onclick="mobToggleSec(' + i + ',\'link\')">' + (eLink ? '完了' : '編集する') + '</button></div>'
+        + (eLink ? '<div class="mob-lr">' + lrInputs + '</div><button class="mob-add-lr" onclick="mobAddLink(' + i + ')">＋ リンクを追加</button><button class="mob-save-btn" onclick="mobSaveSec(' + i + ',\'link\')">保存</button>'
+          : '<div class="link-pills">' + (lh || '<span class="memo-empty">なし</span>') + '</div>')
+        + '</div>'
+        + '<div class="sec"><div class="sec-head"><span class="sec-label">その他</span>'
+        + '<button class="mob-edit-btn' + (eOther ? ' active' : '') + '" onclick="mobToggleSec(' + i + ',\'other\')">' + (eOther ? '完了' : '編集する') + '</button></div>'
+        + (eOther ? '<textarea class="mob-textarea" style="min-height:56px;" onchange="data[' + i + '].other=this.value">' + esc(item.other || '') + '</textarea><button class="mob-save-btn" onclick="mobSaveSec(' + i + ',\'other\')">保存</button>'
+          : (item.other ? '<div class="other-view">' + esc(item.other) + '</div>' : '<span class="memo-empty">なし</span>'))
+        + '</div>'
+        + '<div class="card-footer"><button class="del-card-btn" onclick="delCard(' + i + ')">この検査を削除</button></div>'
+        + '</div>';
+    }
+    card.innerHTML = '<div class="card-head" onclick="mobToggleOpen(' + i + ')">'
+      + '<span class="card-name">' + esc(item.name) + '</span>'
+      + '<div class="head-r">' + (lc ? '<span class="lc-badge">' + lc + '件</span>' : '')
+      + '<span class="chev' + (isOpen ? ' open' : '') + '">▼</span></div></div>' + bodyHtml;
+    list.appendChild(card);
+  });
+}
+
+function mobToggleOpen(i) {
+  openCards[i] = !openCards[i];
+  if (!openCards[i]) { delete editSec[k(i, 'memo')]; delete editSec[k(i, 'link')]; delete editSec[k(i, 'other')]; }
+  renderMob();
+}
+function mobToggleSec(i, s) { editSec[k(i, s)] = !editSec[k(i, s)]; renderMob(); }
+function mobSaveSec(i, s) { delete editSec[k(i, s)]; saveItem(i); renderMob(); }
+function mobAddLink(i) { data[i].links.push({ label: '', url: '' }); editSec[k(i, 'link')] = true; renderMob(); }
+function mobRmLink(i, li) {
+  data[i].links.splice(li, 1);
+  if (!data[i].links.length) data[i].links = [{ label: '', url: '' }];
+  editSec[k(i, 'link')] = true;
+  renderMob();
+}
+
+// =============================================
+// 共通操作
+// =============================================
+function delCard(i) {
+  if (!confirm('「' + data[i].name + '」を削除しますか？')) return;
+  var idx = i;
+  pcEditing = -1;
+  delete openCards[i];
+  deleteItem(idx);
+  renderPC();
+  renderMob();
+}
+
+function addCard() {
+  data.push({ name: '新しい検査', memo: '', links: [{ label: '', url: '' }], other: '', sort_order: data.length });
+  var idx = data.length - 1;
+  pcEditing = idx;
+  openCards[idx] = true;
+  editSec[k(idx, 'memo')] = true;
+  saveItem(idx);
+  renderPC();
+  renderMob();
+}
+
+function filterAll(q) {
+  var lq = q.toLowerCase();
+  document.querySelectorAll('#pc-body tr').forEach(function(r) {
+    r.style.display = (!q || (r.dataset.name && r.dataset.name.includes(lq))) ? '' : 'none';
+  });
+  document.querySelectorAll('#mob-list .card').forEach(function(c) {
+    c.style.display = (!q || (c.dataset.name && c.dataset.name.includes(lq))) ? '' : 'none';
+  });
+}
+
+// =============================================
+// デフォルトデータ（Supabase未設定時用）
+// =============================================
+function getDefaultData() {
+  return [
+    {name:"地縄張り",memo:"大きな宮、配置貼、配置板\nログウォーク着脱（BPMある場合確認）\nスケール、三脚、レベル、地縄セット、ビニールロープ",links:[{label:"丸工スケジュール",url:"https://docs.google.com/spreadsheets/d/1sn21p3Z_SSO0OXGV8G6Ei31WCObSuV1MAElURp6nRDs"},{label:"ログウォーク設定動画",url:""}],other:"",sort_order:0},
+    {name:"基礎着工前挨拶",memo:"接搭チラシ（A4・1枚2ページ印刷）\n日程チェックリストの準備物",links:[],other:"",sort_order:1},
+    {name:"基礎墨工",memo:"",links:[],other:"",sort_order:2},
+    {name:"配筋検査",memo:"図面：配置図、基礎伏図\n倉庫：スケール、三脚、レベル",links:[],other:"",sort_order:3},
+    {name:"HD検査",memo:"図面：土台伏図、基礎伏図\n倉庫：メジャー、十字スケール",links:[{label:"ダンドリー→基礎図面一式",url:""}],other:"",sort_order:4},
+    {name:"基礎完了検査（バラシ）",memo:"図面：配置図・基礎伏図・土台伏図\nDB：対角寸法の基礎伏図\n倉庫：スケール、レベル、三脚、水平器、十字スケール、打診棒、20m巻き尺",links:[],other:"https://youtu.be/oknNQzINwm4",sort_order:5},
+    {name:"土台工事検査",memo:"接搭チラシ、与桁表\nカットスクリュー（箱半分）\n基礎バッキン（箱半分）\n気密パッキン（箱半分）\n鋼製束3045（5つ）\nフィットピン（2箱Lサイズ）\n小さいブルーシート（10枚）\n米よりマット（2枚）\nマスキープープ（25包）\nトイレットペーパー\nゴミ袋、シリコンスプレー、コーナー部材",links:[{label:"接搭チラシのフォーマット",url:""}],other:"",sort_order:6},
+    {name:"中間検査",memo:"ダンドリ（中間検測一式）\nDW：2段改小、小住宅、お経式 A3\nコミットハンガー、バー機、各種三脚",links:[{label:"ダンドリー処理資料",url:""},{label:"tinyurl",url:"https://tinyurl.com/y798bym"}],other:"https://youtu.be/ZT6I0xPSOuo",sort_order:7},
+    {name:"下地検査",memo:"下地チェック",links:[],other:"",sort_order:8},
+    {name:"断熱検査",memo:"サーモグラフィ、断熱ピン、ウレタン、コーキング、充電工具",links:[{label:"内断熱計表",url:""}],other:"https://youtu.be/UykonG6U3Q",sort_order:9},
+    {name:"防水検査",memo:"防水テープ、カッターナイフ",links:[],other:"",sort_order:10},
+    {name:"水漏立ち合い",memo:"なし",links:[],other:"",sort_order:11},
+    {name:"内外仕上げ検査",memo:"各地宮（小）、筋分、窓分\nビスヒドライバー\n太陽光設備確認",links:[],other:"https://youtu.be/91F_q6RS2fQ",sort_order:12},
+    {name:"完了検査",memo:"なし",links:[],other:"",sort_order:13},
+    {name:"気密測定",memo:"デスク脇スーツケース\n気泡テープ・ピンク黒各テープ\nフチル、ガムテープ2枚",links:[{label:"事務所内①",url:"https://youtu.be/1WE2kwxeE"},{label:"事務所",url:"https://youtu.be/mc6pT1F1b"}],other:"",sort_order:14},
+    {name:"社内チェック",memo:"社内チェックシート\nBPMに施工者しかいない場合は社内チェック利用",links:[{label:"社内チェック利用",url:""}],other:"",sort_order:15},
+    {name:"ホルムチェック",memo:"ホルム測定器、三脚、仕程リモコン、測定着板\n採採チラシ、社内チェック測定書\n場幅計測書、コンセント測定書\n窓分、ドライバー、床下付置、ライト、ドリル",links:[{label:"tinyurl設定",url:"https://tinyurl.com/ypkinfo"},{label:"接移フラン",url:"https://drive.google.com/drive/folders"}],other:"https://youtu.be/x1r7s7U67LU",sort_order:16}
+  ];
+}
+
+// =============================================
+// PWA Service Worker 登録
+// =============================================
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(function(err) {
+    console.warn('Service Worker登録失敗:', err);
+  });
+}
+
+// =============================================
+// 起動
+// =============================================
+init();
+</script>
+</body>
+</html>
