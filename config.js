@@ -1,0 +1,3 @@
+// Supabase 接続設定
+const SUPABASE_URL = 'https://vtggrqktxxctfsrompnc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0Z2dycWt0eHhjdGZzcm9tcG5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMTYzNjEsImV4cCI6MjA5MTg5MjM2MX0.uP-iZYxWdflqvFMt9dTFbKvVDkgPOJfg1zdDI411ogs';
