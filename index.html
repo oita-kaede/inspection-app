@@ -195,7 +195,7 @@ var data = [];
 var pcEditing = -1;
 var openCards = {};
 var editSec = {};
-var supabase = null;
+var sb = null;
 var isOnline = navigator.onLine;
 var useSupabase = false;
 
@@ -206,7 +206,7 @@ async function init() {
   // Supabase接続を試みる
   if (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
     try {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       useSupabase = true;
     } catch (e) {
       console.warn('Supabase接続失敗、ローカルモードで起動:', e);
@@ -240,7 +240,7 @@ async function init() {
 // データ読み込み
 // =============================================
 async function loadFromSupabase() {
-  var res = await supabase.from('inspections').select('*').order('sort_order', { ascending: true });
+  var res = await sb.from('inspections').select('*').order('sort_order', { ascending: true });
   if (res.error) throw res.error;
   data = res.data.map(function(row) {
     return {
@@ -291,7 +291,7 @@ async function saveItem(index) {
   try {
     if (item.id) {
       // 更新
-      var res = await supabase.from('inspections').update({
+      var res = await sb.from('inspections').update({
         name: item.name,
         memo: item.memo,
         links: item.links,
@@ -301,7 +301,7 @@ async function saveItem(index) {
       if (res.error) throw res.error;
     } else {
       // 新規
-      var res = await supabase.from('inspections').insert({
+      var res = await sb.from('inspections').insert({
         name: item.name,
         memo: item.memo,
         links: item.links,
@@ -333,7 +333,7 @@ async function deleteItem(index) {
   setStatus('syncing');
 
   try {
-    var res = await supabase.from('inspections').delete().eq('id', item.id);
+    var res = await sb.from('inspections').delete().eq('id', item.id);
     if (res.error) throw res.error;
     setStatus('online');
   } catch (e) {
@@ -347,8 +347,8 @@ async function deleteItem(index) {
 // リアルタイム同期
 // =============================================
 function subscribeRealtime() {
-  if (!supabase) return;
-  supabase.channel('inspections-changes')
+  if (!sb) return;
+  sb.channel('inspections-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'inspections' }, function(payload) {
       // 他の端末からの変更を反映
       loadFromSupabase().then(function() {
